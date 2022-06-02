@@ -1,0 +1,258 @@
+> aI bot that plays flappy bird
+> making game too
+
+
+- Taking an object orientated view to this project;
+  will have to spend some initial time thinking about
+  what classes/objects I would want
+
+  Objects:
+  - Pipe [class]
+  - Bird [class]
+  - Ground [class]
+
+-> when jumping, tick_count is reset to 0, set height of bird to be self.y and the velocity
+   to be -10.5:
+   - self.vel * self.tick_count + 1.5 * self.tick_count ** 2
+   -> When tick_count = 1:
+        -10.5 + 1.5 = -9 - thus upward velocity of 9 pixels
+
+->  self.height + 50 ---> used to define rotation of bird - takes horizontal point and says
+    if bird is above that line then look like it's going up, else look like it's going down
+
+
+-> to animate bird need to keep track of number of ticks, i.e how many times has game_loop run
+
+-- Checking what image to draw/animation based on current image count
+def draw(self, win):
+    self.img_count += 1
+
+    if self.img_count < self.ANIMATION_TIME:
+        self.img = self.IMGS[0]
+    elif self.img_count < self.ANIMATION_TIME * 2:
+        self.img = self.IMGS[1]
+    elif self.img_count < self.ANIMATION_TIME * 3:
+        self.img = self.IMGS[2]
+    elif self.img_count < self.ANIMATION_TIME * 4:
+        self.img = self.IMGS[1]
+    elif self.img_count == self.ANIMATION_TIME * 4 + 1:
+        self.img = self.IMGS[0]
+        self.img_count = 0
+
+-> if the current image count is less than the animation_time (5), the display first fb image
+-> if the current image count is less than the (10), the display second fb image
+-> if the current image count is less than the (15), the display third/last fb image
+-> if the current image count is less than the (20), the display second fb image
+-> if the current image count is less than the (21), the display first fb image
+
+-> thus bird flaps up and bird flaps down
+
+
+-> The pipes/background move around the bird, so use class for pipes
+-> Top pipe is just bottom pipe flipped
+
+-> top pipes are draw at a negative location but appears correctly in window
+
+
+-> For object detection:
+    - Using mask rather than bounded boxed,
+    - Mask: tells us where objects are in window, checks if pixels are overlapping
+    - pygame can figure the pixels, creates 2d list, with #cols = number of vert pixels
+      and #rows = number of horz pixels
+
+-> moving two instances of the base images across window to the left at the same velocity
+   to give the feeling of an infinite background
+
+
+
+-> AI for project; Genetic Algorithm -> Using NEAT (Nero Evolution of of Augmenting Topologies)
+
+- What are Neural Networks; Like onions and ogres, they have many layers
+    -> Input Layer: What is the information to our network
+        o Position of Bird, and distance from Top and Bottom Pipes
+    -> Output Layer: What are we going to do
+        o Jump or not to jump, that is the question
+
+    -> Our two layers, Input and Output are connected together using Connections and Weights,
+       with a one:one relationship between each neuron and connection, i.e each neuron only
+       has one connection to the Output layer.
+
+       Each connection has a Weight, that represents how strong/weak the Connection is.
+       This is used to tune the AI - thus we take the weighted value of each neuron and
+       connection.
+
+       The Bias is applied, kinda' like a y-intercept - basically another tune parameter
+
+       Then an Activation Function (F) is applied, so thus far we have:
+       Weighted Sum = (Input Value * Connection Weight) + Bias
+       Thus:
+       Output = F(Weighted Sum) <-- kinda' like valid limits of output value
+
+       In this project F = TanH - (between -1 and 1) - other options are available
+
+       This we can now have an output value as a point of comparison, so we can say:
+       if TanH(Weighted Sum) > 0.5:
+        JUMP :)
+       else:
+        no jump :(
+
+    -> Weights and Bias's are not determined by user, but by the AI we will use the NEAT
+       algo to perform this calculation; natural selection of bots
+
+    -> Starting off, we have no clue. So we make a population of random Birds, with random
+       weights and bias, and then assess the 'fitness' of the bird as it plays the level.
+
+       Fitness, here, every frame the Bird moves forward, without dying, or without loosing,
+       it gains another fitness point. At end of simulation, we compare the results of our
+       population based on fitness score.
+
+       We then take x % of Birds with high fitness score and 'breed' them together to
+       create a new cohort. We hope new cohort performs better than previous generations.
+
+
+    -> Ensuring correctness of Inputs (input values/parameters) is critical to ensure
+       correctness of AI -> if it doesn't have the correct data, how can it figure anything out?
+
+    -> We will be passing the following:
+        - Position of Bird (y-pos)
+        - Distance Between Bird and Top Pipe
+        - Distance Between Bird and Bottom Pipe
+
+    -> Our output:
+        - Jump or Not Jump (an output neuron is needed for every potential output)
+
+    -> Activation Function:
+        - Using TanH (Limits output between -1 and 1) -> if output is > 0.5 then Jump
+
+    -> Population Size:
+        - Not super important, just number in each cohort generation -> Using 100
+          The larger the population size, the greater the variance in population
+
+    -> Fitness Function:
+        - Very important boi -> How Birds are assessed, how do we identify the best
+          We will say: Whatever bird makes it furthest in level has higher fitness score.
+          i.e Every frame the Bird moves forward, without dying, or without loosing,
+          it gains another fitness point. At end of simulation, we compare the results of our
+          population based on fitness score. (DISTANCE)
+
+
+    -> Max Generations:
+        - When do we give up if this shit ain't working, in this project = 30
+
+
+-> NEAT CONFIGURATION FILE IS VERY IMPORTANT WHEN TRYING TO USE NEAT ALGO
+    - It sets up all the parameters and initial values and constrains for algo
+      to work,
+
+
+-> Network grows in complexity over time and will try to find the simplest solution based on
+   topography
+
+
+-> Config File Insights:
+
+[NEAT]
+fitness_criterion     -> Can choose from min, max and mean - used to determine what elements of
+                         cohort/population/(Bird) should stay
+fitness_threshold     -> What number do we need to reach before we terminate simulation
+pop_size              -> Population Size
+reset_on_extinction   -> Are we getting rid of extinct birds and their nodes from the model
+
+Birds = Genomes
+Each member of population will start with these parameters/constrains
+[DefaultGenome]
+# node activation options
+activation_default      -> tanh (etc.)
+activation_mutate_rate  -> Rate of mutation for activation function
+activation_options      -> tanh (etc.)
+
+# node aggregation options
+aggregation_default     = sum
+aggregation_mutate_rate = 0.0
+aggregation_options     = sum
+
+# node bias options
+bias_init_mean          = 0.0
+bias_init_stdev         = 1.0
+
+bias_max_value          = 30.0  |
+bias_min_value          = -30.0 | -> Initial range limit for Bias
+
+bias_mutate_power       = 0.5   |
+bias_mutate_rate        = 0.7   | -> Rate of change
+bias_replace_rate       = 0.1   |
+
+# genome compatibility options
+compatibility_disjoint_coefficient = 1.0
+compatibility_weight_coefficient   = 0.5
+
+
+This is the likelihood of adding/removing a new connection to/from a Node
+# connection add/remove rates
+conn_add_prob           = 0.5
+conn_delete_prob        = 0.5
+
+
+# connection enable options
+enabled_default         = True (Can have connections that are active or not active)
+enabled_mutate_rate     = 0.01
+
+feed_forward            = True (We're using a Feed Forward Neural Network)
+initial_connection      = full
+
+# node add/remove rates
+node_add_prob           = 0.2
+node_delete_prob        = 0.2
+
+
+This sets the initial default input/output neurons
+# network parameters
+num_hidden              = 0
+num_inputs              = 3
+num_outputs             = 1
+
+# node response options
+response_init_mean      = 1.0
+response_init_stdev     = 0.0
+response_max_value      = 30.0
+response_min_value      = -30.0
+response_mutate_power   = 0.0
+response_mutate_rate    = 0.0
+response_replace_rate   = 0.0
+
+# connection weight options
+weight_init_mean        = 0.0
+weight_init_stdev       = 1.0
+weight_max_value        = 30
+weight_min_value        = -30
+weight_mutate_power     = 0.5
+weight_mutate_rate      = 0.8
+weight_replace_rate     = 0.1
+
+[DefaultSpeciesSet]
+compatibility_threshold = 3.0
+
+[DefaultStagnation]
+species_fitness_func = max
+max_stagnation       = 20 (Max number of generations that can pass without an increase in fitness)
+species_elitism      = 2
+
+[DefaultReproduction]
+elitism            = 2
+survival_threshold = 0.2
+
+
+
+-> When creating a fitness function for use w/ NEAT it must be passed two arguments:
+   'genomes' and 'config'
+
+
+-> Bcs such a simple task - if using a large initial population size will reach good v.soon
+
+-> if wanted to be efficient, when would not draw pygame window or tick at 30seconds
+   would change to run as fast a possible - without rendering to screen
+
+
+-> To save winner use the pickle module; save winner bird object
+
+
